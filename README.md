@@ -22,7 +22,7 @@ class MyClass {
       if (HoursConfiguration.isAllowedNow(allWeekConfig, DateTimeZone.UTC)) {
         System.out.println("We are open!");
       } else {
-          System.out.println("We are closed.");
+        System.out.println("We are closed.");
       }
     }
 }
