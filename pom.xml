@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.cliengo</groupId>
-  <artifactId>hours_configuration</artifactId>
+  <artifactId>hours-configuration</artifactId>
   <version>1.0.0</version>
   <packaging>jar</packaging>
 
