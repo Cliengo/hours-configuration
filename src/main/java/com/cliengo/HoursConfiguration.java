@@ -57,6 +57,29 @@ public class HoursConfiguration {
     public static final Pattern DISABLED_DAY_REGEX = Pattern.compile("^-$");
 
     /**
+     * Equivalent to {@link #isAllowedNow(List, DateTimeZone)} in the current timezone.
+     */
+    public static boolean isAllowedNow(List<String> configuration) throws IllegalArgumentException, IllegalStateException {
+        return isAllowedNow(configuration, null);
+    }
+
+    /**
+     * Equivalent to {@link #isAllowedNow(String, DateTimeZone)} for the current day (in the specified timezone).
+     *
+     * @param configuration Complete hours configuration. Should be a 7-element list, one entry for each day.
+     * @param timeZone      (Optional) Timezone in which to evaluate. Null means current timezone.
+     * @return Whether the configuration allows an action to be performed now.
+     * @throws IllegalArgumentException If {@code configuration.size() != 7} or if {@link #isAllowedNow(String)} throws.
+     * @throws IllegalStateException    If {@link #isAllowedNow(String)} throws.
+     */
+    public static boolean isAllowedNow(List<String> configuration, DateTimeZone timeZone) throws IllegalArgumentException, IllegalStateException {
+        if (configuration.size() != 7) {
+            throw new IllegalArgumentException("Provided configuration should have exactly 7 entries, one for each day, but has " + configuration.size());
+        }
+        return isAllowedNow(configuration.get(getCurrentDayIndex(timeZone)), timeZone);
+    }
+
+    /**
      * Equivalent to {@link #isAllowedNow(String[], DateTimeZone)} in the current timezone.
      */
     public static boolean isAllowedNow(String[] configuration) throws IllegalArgumentException, IllegalStateException {
