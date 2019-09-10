@@ -93,8 +93,7 @@ public class HoursConfigurationTest {
     public void testWithinInterval() {
         doWithFrozenTime(12, () -> {
             String singleDayConfig = "11-13";
-            String[] allWeekConfig = new String[7];
-            Arrays.fill(allWeekConfig, singleDayConfig);
+            String[] allWeekConfig = HoursConfiguration.copyForAllDays(singleDayConfig);
 
             assertTrue(String.format("Valid configuration %s was not allowed", Arrays.toString(allWeekConfig)),
                     HoursConfiguration.isAllowedNow(allWeekConfig));
