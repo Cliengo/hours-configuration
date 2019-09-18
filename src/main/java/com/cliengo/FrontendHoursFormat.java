@@ -10,7 +10,7 @@ import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
 /**
- * Hours configuration format usually used by frontend. This class serves to transform between it and
+ * Hours configuration format used by frontend. This class serves to transform between it and
  * {@link HoursConfiguration}.  The frontend JSON format recognized by this class has the following shape:
  * <pre>
  * [
