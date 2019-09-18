@@ -274,7 +274,7 @@ public class HoursConfiguration {
     /**
      * Equivalent to {@link #stringToInterval(String, DateTimeZone)} with the current timezone.
      */
-    private static Interval stringToInterval(String interval) throws IllegalArgumentException {
+    public static Interval stringToInterval(String interval) throws IllegalArgumentException {
         return stringToInterval(interval, null);
     }
 
@@ -286,7 +286,7 @@ public class HoursConfiguration {
      * @return The corresponding interval
      * @throws IllegalArgumentException If interval string is invalid
      */
-    private static Interval stringToInterval(String interval, DateTimeZone timeZone) throws IllegalArgumentException {
+    public static Interval stringToInterval(String interval, DateTimeZone timeZone) throws IllegalArgumentException {
         Matcher intervalMatcher = SINGLE_INTERVAL_REGEX.matcher(interval);
         // find() or matches() must be called on a matcher before using group() and related functions
         if (!intervalMatcher.matches()) {
@@ -320,7 +320,7 @@ public class HoursConfiguration {
      * @param interval Interval to convert to string.
      * @return The corresponding string.
      */
-    private static String intervalToString(Interval interval) {
+    public static String intervalToString(Interval interval) {
         StringBuilder result = new StringBuilder();
         DateTime start = interval.getStart(), end = interval.getEnd();
 
@@ -336,126 +336,4 @@ public class HoursConfiguration {
         return result.toString();
     }
 
-    /**
-     * Hours configuration format usually used by frontend. This inner utility class serves to transform between it and
-     * {@link HoursConfiguration}.  The frontend JSON format recognized by this class has the following shape:
-     * <pre>
-     * [
-     *   {
-     *     "days": [int array],    // Where 1 is Monday, 2 Tuesday, etc.
-     *     "range": "start-end|*", // Corresponding to either {@link HoursConfiguration#SINGLE_INTERVAL_REGEX} or {@link HoursConfiguration#ALL_DAY_REGEX}
-     *   },
-     *   ...
-     * ]
-     * </pre>
-     */
-    public static class FrontendHoursFormat {
-        public static final String DAYS = "days", RANGE = "range";
-
-        /**
-         * Convert frontend hours format to a valid {@link HoursConfiguration} format.
-         *
-         * @param hours Hours JSON, as retrieved from the endpoint.
-         * @return The <b>valid</b> matching hours config.
-         * @throws IllegalArgumentException On malformed JSON or invalid hours configuration.
-         */
-        public static List<String> toHoursConfig(JsonArray hours) throws IllegalArgumentException {
-            // 7-element list with nulls
-            List<List<Interval>> entries = new ArrayList<>(7);
-            entries.addAll(Collections.nCopies(7, null));
-
-            hours.forEach(entry -> {
-                if (!entry.getAsJsonObject().has(DAYS)) {
-                    throw new IllegalArgumentException("Malformed hours, no " + DAYS + " key");
-                }
-                if (!entry.getAsJsonObject().has(RANGE)) {
-                    throw new IllegalArgumentException("Malformed hours, no " + RANGE + " key");
-                }
-
-                // Get start and end times for current entry
-                Interval interval;
-                String range = entry.getAsJsonObject().get(RANGE).getAsString();
-                Matcher intervalMatcher = SINGLE_INTERVAL_REGEX.matcher(range);
-                if (ALL_DAY_REGEX.matcher(range).matches()) {
-                    interval = new Interval(
-                            new DateTime().withTimeAtStartOfDay(),
-                            new DateTime().millisOfDay().withMaximumValue() // End of day, see https://stackoverflow.com/a/32134093
-                    );
-                } else if (intervalMatcher.matches()) {
-                    interval = stringToInterval(range);
-                } else {
-                    throw new IllegalArgumentException("Malformed range " + range);
-                }
-
-                // Add range to all corresponding days
-                JsonArray days = entry.getAsJsonObject().getAsJsonArray(DAYS);
-                days.forEach(d -> {
-                    int day = d.getAsInt() - 1; // 1 is Monday in JSON => 0 is Monday in `ranges`
-                    List<Interval> existingRanges = entries.get(day);
-                    if (existingRanges == null) {
-                        entries.set(day, new ArrayList<>(Collections.singletonList(interval)));
-                    } else {
-                        // Check for overlapping ranges
-                        List<Interval> overlappingIntervals = existingRanges.stream().filter(interval::overlaps).collect(Collectors.toList());
-                        if (!overlappingIntervals.isEmpty()) {
-                            throw new IllegalArgumentException(String.format("Overlapping ranges: %s is included within %s", intervalToString(interval), overlappingIntervals.stream().map(HoursConfiguration::intervalToString).collect(Collectors.joining(","))));
-                        }
-
-                        // No overlap, add new range
-                        existingRanges.add(interval);
-                    }
-                });
-            });
-
-            // Convert to valid hours configuration
-            List<String> result = entries.stream().map(intervals -> {
-                StringBuilder entry = new StringBuilder();
-                if (intervals == null) {
-                    entry.append("-");
-                } else if (intervals.get(0).getStart().getHourOfDay() == 0 && intervals.get(0).getEndMillis() == intervals.get(0).getEnd().millisOfDay().withMaximumValue().getMillis()) {
-                    // TODO I think this is not necessary as overlap would have been detected previously
-                    if (intervals.size() > 2) {
-                        throw new IllegalStateException("Parsing a 00-24 range but there are more ranges, only 00-24 should be present in " + intervals);
-                    }
-                    entry.append("*");
-                } else {
-                    entry.append(intervals.stream().map(HoursConfiguration::intervalToString).collect(Collectors.joining(",")));
-                }
-                return entry.toString();
-            }).collect(Collectors.toList());
-            HoursConfiguration.validate(result); // Result must be valid
-            return result;
-        }
-
-        /**
-         * Convert a valid {@link HoursConfiguration} format to frontend hours format.
-         *
-         * @param config Valid hours configuration.
-         * @return The <b>valid</b> matching hours config.
-         * @throws IllegalArgumentException On malformed hours configuration.
-         */
-        public static JsonArray fromHoursConfig(List<String> config) {
-            HoursConfiguration.validate(config);
-            // Group by ranges, adapted from https://stackoverflow.com/a/41095159
-            Map<String, List<Integer>> groupedRanges = new HashMap<>();
-            for (int i = 0; i < config.size(); i++) {
-                int finalI = i;
-                Arrays.stream(config.get(i).split(",")).forEach(range -> groupedRanges.computeIfAbsent(range, c -> new ArrayList<>()).add(finalI + 1));
-            }
-
-            // Convert to properly formatted JSON object
-            JsonArray result = new JsonArray();
-            groupedRanges.forEach((range, days) -> {
-                JsonObject entry = new JsonObject();
-                entry.addProperty(RANGE, range);
-
-                JsonArray entryDays = new JsonArray();
-                days.forEach(entryDays::add);
-                entry.add(DAYS, entryDays);
-
-                result.add(entry);
-            });
-            return result;
-        }
-    }
 }
