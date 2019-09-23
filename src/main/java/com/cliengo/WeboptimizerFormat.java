@@ -41,16 +41,6 @@ public class WeboptimizerFormat {
 
         List<Interval> intervals = new ArrayList<>();
 
-        // New datetime in the website timezone
-        DateTime monday = new DateTime(websiteTimeZone)
-                // Go to Monday
-                .withDayOfWeek(DateTimeConstants.MONDAY)
-                // At start of day
-                .withTimeAtStartOfDay()
-                // Convert to UTC
-                .withZone(DateTimeZone.UTC);
-        long mondayMillis = monday.getMillis();
-
         for (int i = 1; i <= 7; i++) {
             String entry = config.get(i-1);
 
@@ -60,14 +50,14 @@ public class WeboptimizerFormat {
                 for(String subEntry : entry.split(",")) {
                     Interval interval = HoursConfiguration.stringToInterval(subEntry, websiteTimeZone);
                     intervals.add(new Interval(
-                            interval.getStart().withDayOfWeek(i).withZone(DateTimeZone.UTC),
-                            interval.getEnd().withDayOfWeek(i).withZone(DateTimeZone.UTC))
+                            interval.getStart().withDayOfWeek(i),
+                            interval.getEnd().withDayOfWeek(i))
                     );
                 }
 
             } else if (HoursConfiguration.ALL_DAY_REGEX.matcher(entry).matches()) {
                 // Add start of day and end of day
-                DateTime start = new DateTime(websiteTimeZone).withDayOfWeek(i).withTimeAtStartOfDay().withZone(DateTimeZone.UTC),
+                DateTime start = new DateTime(websiteTimeZone).withDayOfWeek(i).withTimeAtStartOfDay(),
                         end = start.plusDays(1).minusSeconds(1);
                 intervals.add(new Interval(start, end));
             } else if (HoursConfiguration.DISABLED_DAY_REGEX.matcher(entry).matches()) {
@@ -81,12 +71,36 @@ public class WeboptimizerFormat {
         for (Interval interval : intervals) {
             DateTime start = interval.getStart(), end = interval.getEnd();
             JsonObject obj = new JsonObject();
-            obj.addProperty(START, (start.getMillis() - mondayMillis) / 1000);
-            obj.addProperty(END, (end.getMillis() - mondayMillis) / 1000);
-
+            obj.addProperty(START, getWeekTimestamp(start));
+            obj.addProperty(END, getWeekTimestamp(end));
             result.add(obj);
         }
 
         return result;
+    }
+
+    /**
+     * Get a {@link DateTime} corresponding to the Monday immediately preceding the specified date-time, at midnight.
+     *
+     * @param now Reference time.
+     * @return Monday immediately preceding the reference time at midnight.
+     */
+    public static DateTime precedingMonday(DateTime now) {
+        return now
+                // Go to previous Monday
+                .withDayOfWeek(DateTimeConstants.MONDAY)
+                // At start of day
+                .withTimeAtStartOfDay();
+    }
+
+    /**
+     * Get the "week timestamp" for the given date, ie. the number of <b>seconds</b> (not millis) between the given
+     * date-time and the start of the Monday immediately preceding it.
+     *
+     * @param now The reference time.
+     * @return The number of seconds since the Monday immediately before the reference time.
+     */
+    public static long getWeekTimestamp(DateTime now) {
+        return (now.getMillis() - precedingMonday(now).getMillis()) / 1000;
     }
 }
