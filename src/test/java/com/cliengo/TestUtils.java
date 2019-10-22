@@ -35,4 +35,16 @@ class TestUtils {
             DateTimeUtils.setCurrentMillisSystem();
         }
     }
+
+    /**
+     * Get a week timestamp.
+     *
+     * @param day     Day of week. <b>Monday is 1</b>.
+     * @param hour    Hours.
+     * @param minutes Minutes.
+     * @return The computed week timestamp.
+     */
+    static int weekTimestamp(int day, int hour, int minutes) {
+        return ((day-1)*24*60 + hour*60 + minutes) * 60;
+    }
 }
