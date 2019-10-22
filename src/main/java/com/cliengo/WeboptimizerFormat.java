@@ -49,12 +49,19 @@ public class WeboptimizerFormat {
                 // We have various intervals. Split by comma, get every interval, and add start and end of every interval (in UTC)
                 for(String subEntry : entry.split(",")) {
                     Interval interval = HoursConfiguration.stringToInterval(subEntry, websiteTimeZone);
-                    intervals.add(new Interval(
-                            interval.getStart().withDayOfWeek(i),
-                            interval.getEnd().withDayOfWeek(i))
-                    );
-                }
+                    // Move intervals to the day of week we're currently iterating over
+                    DateTime movedStart = interval.getStart().withDayOfWeek(i),
+                            movedEnd = interval.getEnd().withDayOfWeek(i);
+                    // If interval ends in 00, move it one day further like #stringToInterval does
+                    if (interval.getEnd().getDayOfWeek() > interval.getStart().getDayOfWeek()) {
+                        movedEnd = movedEnd.plusDays(1);
+                    }
 
+                    intervals.add(new Interval(
+                            movedStart,
+                            movedEnd
+                    ));
+                }
             } else if (HoursConfiguration.ALL_DAY_REGEX.matcher(entry).matches()) {
                 // Add start of day and end of day
                 DateTime start = new DateTime(websiteTimeZone).withDayOfWeek(i).withTimeAtStartOfDay(),
@@ -69,10 +76,9 @@ public class WeboptimizerFormat {
 
         JsonArray result = new JsonArray();
         for (Interval interval : intervals) {
-            DateTime start = interval.getStart(), end = interval.getEnd();
             JsonObject obj = new JsonObject();
-            obj.addProperty(START, getWeekTimestamp(start));
-            obj.addProperty(END, getWeekTimestamp(end));
+            obj.addProperty(START, getWeekTimestamp(interval.getStart()));
+            obj.addProperty(END, getWeekTimestamp(interval.getEnd(), true));
             result.add(obj);
         }
 
@@ -80,17 +86,39 @@ public class WeboptimizerFormat {
     }
 
     /**
+     * Equivalent to {@code precdingMonday(now, false)}.
+     *
+     * @see #precedingMonday(DateTime, boolean)
+     */
+    public static DateTime precedingMonday(DateTime now) {
+        return precedingMonday(now, false);
+    }
+
+    /**
      * Get a {@link DateTime} corresponding to the Monday immediately preceding the specified date-time, at midnight.
      *
      * @param now Reference time.
+     * @param goBackMondayMidnight Whether to go one week back if now is Monday at midnight.
      * @return Monday immediately preceding the reference time at midnight.
      */
-    public static DateTime precedingMonday(DateTime now) {
-        return now
+    public static DateTime precedingMonday(DateTime now, boolean goBackMondayMidnight) {
+        DateTime result = now
                 // Go to previous Monday
                 .withDayOfWeek(DateTimeConstants.MONDAY)
                 // At start of day
                 .withTimeAtStartOfDay();
+
+        if (goBackMondayMidnight && now.getDayOfWeek() == DateTimeConstants.MONDAY && now.getMillisOfDay() == 0) {
+            result = result.minusDays(7);
+        }
+        return result;
+    }
+
+    /**
+     * Equivalent to {@code getWeekTimestamp(now, false)}.
+     */
+    public static long getWeekTimestamp(DateTime now) {
+        return getWeekTimestamp(now, false);
     }
 
     /**
@@ -98,9 +126,11 @@ public class WeboptimizerFormat {
      * date-time and the start of the Monday immediately preceding it.
      *
      * @param now The reference time.
+     * @param goBackMondayMidnight Whether to calculate a timestamp from a previous monday if now is Monday at midnight.
      * @return The number of seconds since the Monday immediately before the reference time.
+     * @see #precedingMonday(DateTime, boolean)
      */
-    public static long getWeekTimestamp(DateTime now) {
-        return (now.getMillis() - precedingMonday(now).getMillis()) / 1000;
+    public static long getWeekTimestamp(DateTime now, boolean goBackMondayMidnight) {
+        return (now.getMillis() - precedingMonday(now, goBackMondayMidnight).getMillis()) / 1000;
     }
 }

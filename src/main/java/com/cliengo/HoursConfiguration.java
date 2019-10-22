@@ -304,13 +304,26 @@ public class HoursConfiguration {
         DateTime start = new DateTime(timeZone).withTimeAtStartOfDay().withHourOfDay(startHour).withMinuteOfHour(startMinutes),
                 end = new DateTime(timeZone).withTimeAtStartOfDay().withHourOfDay(endHour).withMinuteOfHour(endMinutes);
 
-        // Special case: consider 24 or 00 as the start of the next day
+        // Edge cases with 00 hours at end
         if (endHour == 0) {
-            if (endMinutes != 0) {
-                throw new IllegalArgumentException("End minutes may not be non-zero if end hour is 24 or 00 for interval " + interval);
+            if (startHour == 0) { // 00:XX-00:YY
+                if (endMinutes == 0) { // 00:XX-00:00, take end as midnight of next day
+                    end = end.withTimeAtStartOfDay().plusDays(1);
+                } else { // 00:XX-00:YY
+                    if (endMinutes < startMinutes) {
+                        throw new IllegalArgumentException("End must be before start for interval " + interval);
+                    }
+                    // else, valid interval
+                }
+            } else { //XX:YY-00:ZZ
+                if (endMinutes != 0) {
+                    throw new IllegalArgumentException("End moment is on the next day, specify this with a new entry for the next day. For interval " + interval);
+                } else { //XX:YY-00:00, take end as midnight of next day
+                    end = end.withTimeAtStartOfDay().plusDays(1);
+                }
             }
-            end = end.withTimeAtStartOfDay().plusDays(1);
         }
+
         return new Interval(start, end);
     }
 
